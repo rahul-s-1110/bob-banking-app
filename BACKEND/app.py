@@ -8,7 +8,7 @@ import sys
 # Ensure imports resolve from the BACKEND folder when running via `flask run`
 sys.path.insert(0, os.path.dirname(__file__))
 
-from flask import Flask, redirect, url_for, render_template, request, session
+from flask import Flask, redirect, url_for, render_template, request, session, flash
 
 from db import get_db, init_db, register_teardown
 from auth import handle_login, handle_logout, login_required
@@ -84,7 +84,29 @@ def deposit():
 def withdraw():
     user_id = session["user_id"]
     if request.method == "POST":
-        apply_withdrawal(user_id, request.form.get("amount", ""))
+        amount = request.form.get("amount", "")
+
+        if not amount or not amount.strip():
+            flash("Amount is required", "danger")
+            balance = get_balance(user_id)
+            return render_template("withdraw.html", balance=f"{balance:,.2f}")
+
+        try:
+            amount_value = float(amount)
+        except ValueError:
+            amount_value = None
+
+        if amount_value is None or amount_value <= 0:
+            flash("Amount must be greater than zero", "danger")
+            balance = get_balance(user_id)
+            return render_template("withdraw.html", balance=f"{balance:,.2f}")
+
+        if amount_value > get_balance(user_id):
+            flash("Insufficient funds", "danger")
+            balance = get_balance(user_id)
+            return render_template("withdraw.html", balance=f"{balance:,.2f}")
+
+        apply_withdrawal(user_id, amount)
         return redirect(url_for("dashboard"))
     balance = get_balance(user_id)
     return render_template("withdraw.html", balance=f"{balance:,.2f}")
